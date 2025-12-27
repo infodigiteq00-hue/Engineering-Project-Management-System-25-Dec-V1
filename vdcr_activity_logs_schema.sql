@@ -49,3 +49,6 @@ CREATE INDEX IF NOT EXISTS idx_vdcr_activity_logs_created_by
 CREATE INDEX IF NOT EXISTS idx_vdcr_activity_logs_created_at 
   ON public.vdcr_activity_logs(created_at DESC);
 
+
+
+

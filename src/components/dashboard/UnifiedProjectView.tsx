@@ -80,7 +80,8 @@ const UnifiedProjectView = ({
   const [teamMembersLoading, setTeamMembersLoading] = useState(false);
 
   // VDCR and Equipment Logs states
-  const [vdcrRecords, setVdcrRecords] = useState<any[]>([]);
+  const [vdcrRecords, setVdcrRecords] = useState<any[]>([]); // Activity logs for Activity Log tab
+  const [vdcrDocuments, setVdcrDocuments] = useState<any[]>([]); // Actual VDCR records for Birdview
   const [isLoadingVDCR, setIsLoadingVDCR] = useState(false);
   const [equipmentProgressEntries, setEquipmentProgressEntries] = useState<any[]>([]);
   const [isLoadingEquipmentLogs, setIsLoadingEquipmentLogs] = useState(false);
@@ -90,19 +91,39 @@ const UnifiedProjectView = ({
     documentName: ''
   });
 
-  // Load VDCR activity logs instead of just records
+  // Load VDCR activity logs and actual VDCR records
   const loadVDCRData = async () => {
     try {
       setIsLoadingVDCR(true);
-      console.log('🔄 Loading VDCR activity logs for project:', projectId);
-      // Import activityApi to fetch VDCR activity logs
-      const { activityApi } = await import('@/lib/activityApi');
-      const logs = await activityApi.getVDCRActivityLogs(projectId);
-      console.log('✅ Loaded VDCR activity logs:', logs?.length || 0, 'logs');
-      setVdcrRecords(logs as any[]);
+      console.log('🔄 Loading VDCR data for project:', projectId);
+      
+      // Load activity logs for Activity Log tab
+      try {
+        const { activityApi } = await import('@/lib/activityApi');
+        const logs = await activityApi.getVDCRActivityLogs(projectId);
+        const logsArray = Array.isArray(logs) ? logs : [];
+        console.log('✅ Loaded VDCR activity logs:', logsArray.length, 'logs');
+        setVdcrRecords(logsArray);
+      } catch (error) {
+        console.error('❌ Error loading VDCR activity logs:', error);
+        setVdcrRecords([]);
+      }
+      
+      // Load actual VDCR records for Birdview
+      try {
+        const { fastAPI } = await import('@/lib/api');
+        const records = await fastAPI.getVDCRRecordsByProject(projectId);
+        const recordsArray = Array.isArray(records) ? records : [];
+        console.log('✅ Loaded VDCR records:', recordsArray.length, 'records');
+        setVdcrDocuments(recordsArray);
+      } catch (error) {
+        console.error('❌ Error loading VDCR records:', error);
+        setVdcrDocuments([]);
+      }
     } catch (error) {
-      console.error('❌ Error loading VDCR activity logs:', error);
+      console.error('❌ Error loading VDCR data:', error);
       setVdcrRecords([]);
+      setVdcrDocuments([]);
     } finally {
       setIsLoadingVDCR(false);
     }
@@ -426,7 +447,8 @@ const UnifiedProjectView = ({
 
   // VDCR Overview functions
   const calculateVDCRStats = () => {
-    const records = vdcrRecords || [];
+    // Use actual VDCR records for Birdview stats
+    const records = vdcrDocuments || [];
     return {
       approved: records.filter(record => record.status === 'approved').length,
       underReview: records.filter(record => record.status === 'received-for-comment').length,
@@ -437,13 +459,14 @@ const UnifiedProjectView = ({
   };
 
   const getVDCRDocumentsByStatus = (status: string) => {
-    const records = vdcrRecords || [];
+    // Use actual VDCR records for Birdview (not activity logs)
+    const records = vdcrDocuments || [];
     const filteredRecords = records.filter(record => record.status === status);
     return filteredRecords.map(record => ({
       documentName: record.document_name || 'Unknown Document',
       revision: record.revision || 'Rev-00',
       remarks: record.remarks || 'No remarks',
-      lastUpdate: record.last_update ? new Date(record.last_update).toLocaleDateString('en-US', {
+      lastUpdate: record.last_update || record.updated_at ? new Date(record.last_update || record.updated_at).toLocaleDateString('en-US', {
         month: 'short',
         day: '2-digit',
         year: 'numeric',
@@ -451,8 +474,8 @@ const UnifiedProjectView = ({
         minute: '2-digit'
       }) : new Date().toLocaleDateString(),
       updatedBy: record.updated_by_user?.full_name || record.updated_by || 'Unknown User',
-      daysAgo: record.last_update ? 
-        `${Math.floor((new Date().getTime() - new Date(record.last_update).getTime()) / (1000 * 60 * 60 * 24))} days ago` : 
+      daysAgo: record.last_update || record.updated_at ? 
+        `${Math.floor((new Date().getTime() - new Date(record.last_update || record.updated_at).getTime()) / (1000 * 60 * 60 * 24))} days ago` : 
         'Unknown',
       documentUrl: record.document_url || '#',
       equipmentTags: record.equipment_tag_numbers || []
@@ -1037,7 +1060,7 @@ const UnifiedProjectView = ({
                 <div className="flex-1 min-w-0">
                   <p className="text-xs sm:text-sm font-medium text-purple-600 mb-1">VDCR Documents</p>
                   {/* <div className="text-2xl font-bold text-purple-800">{vdcrData?.length || 0}</div> */}
-                  <div className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-800">{vdcrRecords?.length || 0}</div>
+                  <div className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-800">{vdcrDocuments?.length || 0}</div>
                   <p className="text-xs sm:text-sm text-purple-600">Total Records</p>
                 </div>
                 <FileText size={20} className="text-purple-500 flex-shrink-0 sm:w-6 sm:h-6" />
@@ -3197,5 +3220,6 @@ const UnifiedProjectView = ({
 };
 
 export default UnifiedProjectView;
+
 
 
